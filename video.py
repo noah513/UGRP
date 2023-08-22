@@ -22,23 +22,25 @@ def encode_to_120fps(input_file, output_file):
     command = f"ffmpeg -i {abs_input_path} -r 120 {abs_output_path}"
     subprocess.call(command, shell=True)
     
-def extract_frames(input_file, output_folder):
+def extract_frames(input_file, output_folder, last_frame_number):
     abs_input_path = os.path.abspath(input_file)
     abs_output_folder = os.path.abspath(output_folder)
     if not os.path.exists(abs_output_folder):
         os.makedirs(abs_output_folder)
-    command = f"ffmpeg -i {abs_input_path} -vf fps=120 {os.path.join(abs_output_folder, '%d.jpg')}"
+    command = f"ffmpeg -i {abs_input_path} -vf fps=120 -vframes {last_frame_number} {os.path.join(abs_output_folder, '%d.jpg')}"
     subprocess.call(command, shell=True)
     
 def save_extracted_images(output_folder, marks, group_name):
     for idx, mark in enumerate(marks):
         start = marks[idx-1] if idx > 0 else 0
         end = mark
-
+        
+        # true image save
         true_image = os.path.join(output_folder, f"{end}.jpg")
         destination = os.path.join(group_name, str(idx), 'true')
         shutil.move(true_image, destination)
 
+        # false image save
         for false_frame in range(start + 1, end):  
             false_image = os.path.join(output_folder, f"{false_frame}.jpg")
             destination = os.path.join(group_name, str(idx), 'false')
@@ -60,13 +62,14 @@ class CustomSlider(QSlider):
             color = Qt.GlobalColor.red
             painter.setPen(QPen(color, 2))
             painter.drawLine(x, 0, x, self.height())
-      
+     
+# main class
 class VideoPlayer(QWidget):     
     def __init__(self, parent=None, group_name=None):
         super(VideoPlayer, self).__init__(parent)
         self.group_name = group_name
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
-        self.frame_duration = float(1000 / 120)  
+        self.frame_duration = float(1000 / 120)  # time of 1 frame (milisec)
         self.mediaPlayer = QMediaPlayer()
         self.marked_frames = [] 
 
@@ -114,7 +117,7 @@ class VideoPlayer(QWidget):
         controlLayout.addWidget(self.markFrameButton)
         controlLayout.addWidget(self.extractButton)
         
-        self.markedInfoLabel = QLabel() 
+        self.markedInfoLabel = QLabel()  # Used to display marked frames
         self.markedInfoLabel.setFont(QFont("Noto Sans", 8))
 
         mainLayout = QVBoxLayout()
@@ -134,6 +137,7 @@ class VideoPlayer(QWidget):
         
         self.markedInfoLabel.setFixedHeight(10)
 
+    # open video
     def abrir(self):
         fileName, _ = QFileDialog.getOpenFileName(self, "Select Media",
                 ".", "Video Files (*.mp4 *.flv *.ts *.mts *.avi)")
@@ -142,12 +146,15 @@ class VideoPlayer(QWidget):
         self.extractButton.setEnabled(True)
 
         if fileName != '':
+            # end with 'encoded'
             if not fileName.endswith("_encoded.mp4"):
+                # do encoding
                 basename = os.path.basename(fileName)
                 name, ext = os.path.splitext(basename)
                 encoded_file = os.path.join(os.path.dirname(fileName), f"{name}_encoded{ext}")
                 encode_to_120fps(fileName, encoded_file)
             else:
+                # skip encoding
                 encoded_file = fileName
             
             self.mediaPlayer.setSource(QUrl.fromLocalFile(encoded_file))
@@ -171,16 +178,20 @@ class VideoPlayer(QWidget):
     def extract_images(self):
         video_file = self.mediaPlayer.source().fileName()
         output_folder = os.path.join(os.path.dirname(video_file), "image")
-        extract_frames(video_file, output_folder)
+        
+        marked_frames_in_numbers = [int(frame // self.frame_duration) for frame in self.marked_frames]
+        last_frame = max(marked_frames_in_numbers) if marked_frames_in_numbers else 0
+        
+        extract_frames(video_file, output_folder, last_frame)
         self.statusBar.showMessage(f"Images extracted to {output_folder}")
 
-        marked_frames_in_numbers = [int(frame // self.frame_duration) for frame in self.marked_frames]
-
+        # Create folders
         for idx, _ in enumerate(marked_frames_in_numbers):
-            new_folder_name = str(idx)
-            new_folder_path = os.path.join(self.group_name, new_folder_name) 
+            new_folder_name = str(idx) 
+            new_folder_path = os.path.join(self.group_name, new_folder_name)  # Path
             create_directory(new_folder_path)
 
+            # true and false subfolder
             true_subfolder_path = os.path.join(new_folder_path, "true")
             false_subfolder_path = os.path.join(new_folder_path, "false")
             create_directory(true_subfolder_path)
@@ -225,7 +236,7 @@ class VideoPlayer(QWidget):
     def positionChanged(self, position):
         self.positionSlider.setValue(position)
         self.update_frame_number(position, self.mediaPlayer.duration())
-
+        # current location = mark frame location
         if position in self.marked_frames:
             self.markFrameButton.setText("Remove Mark")
         else:
@@ -242,7 +253,7 @@ class VideoPlayer(QWidget):
             
     def update_button_text(self):
         current_position = self.mediaPlayer.position()
-
+        # current location = mark frame location
         if current_position in self.marked_frames:
             self.markFrameButton.setText("Remove Mark")
         else:
@@ -272,8 +283,8 @@ class VideoPlayer(QWidget):
         self.statusBar.showMessage("Error: " + self.mediaPlayer.errorString())
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Process some arguments.')
-    parser.add_argument('-g', required=True, help='The name for creating a new directory')
+    parser = argparse.ArgumentParser(description='Process arguments.', usage='video.py -g [name]')
+    parser.add_argument('-g', required=True, help='Name for new directory')
     args = parser.parse_args()
 
     create_directory(args.g)
