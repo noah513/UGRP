@@ -10,11 +10,50 @@ from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QStyleFactory,
         QPushButton, QSizePolicy, QSlider, QStyle, QVBoxLayout, QWidget, QStatusBar, QMessageBox, QProgressDialog)
+        
+from PIL import Image
+import imagehash
+import glob
+
+def filter_similar_images(directory):
+    # image hash value
+    image_files = sorted(glob.glob(os.path.join(directory, '*.jpg')))
+    total_images = len(image_files)
+    
+    hashes = []
+    for idx, img_file in enumerate(image_files):
+        with Image.open(img_file) as img:
+            h = imagehash.phash(img)
+            hashes.append((img_file, h))
+        # Print progress for every 10 images
+        if idx % 10 == 0:
+            print(f"Processed {idx}/{total_images} images")
+
+    # grouping 
+    checked = set()
+    to_keep = set()
+    for i, (img_file1, hash1) in enumerate(hashes):
+        if img_file1 in checked:
+            continue
+        similar_group = [img_file1]
+        for j, (img_file2, hash2) in enumerate(hashes[i+1:], start=i+1):
+            if hash1 - hash2 <= 10:  # setting for hashing
+                similar_group.append(img_file2)
+        checked.update(similar_group)
+        to_keep.update(similar_group[:20]) 
+
+    # delete other images
+    for img_file in image_files:
+        if img_file not in to_keep:
+            os.remove(img_file)
+            
+    print(f"{directory} is completed.")
 
 def create_directory(name):
     path = os.path.join(os.getcwd(), name)
-    if not os.path.exists(path):
-        os.makedirs(path)
+    if os.path.exists(path):
+        shutil.rmtree(path)  # delete folder (reset)
+    os.makedirs(path)
         
 def encode_to_120fps(input_file, output_file):
     abs_input_path = os.path.abspath(input_file)
@@ -45,6 +84,10 @@ def save_extracted_images(output_folder, marks, group_name):
             false_image = os.path.join(output_folder, f"{false_frame}.jpg")
             destination = os.path.join(group_name, str(idx), 'false')
             shutil.move(false_image, destination)
+        
+        false_dirs = [os.path.join(group_name, str(idx), 'false') for idx in range(len(marks))]
+        for dir in false_dirs:
+            filter_similar_images(dir)
     
 class CustomSlider(QSlider):
     def __init__(self, *args, **kwargs):
@@ -247,7 +290,7 @@ class VideoPlayer(QWidget):
         self.update_frame_number(self.mediaPlayer.position(), duration)
 
     def update_frame_number(self, position, duration):
-        current_frame = round((position + 0.5) / self.frame_duration)
+        current_frame = round(position / self.frame_duration)
         total_frames = round(duration / self.frame_duration)
         self.statusBar.showMessage(f"{current_frame}/{total_frames}")
             
