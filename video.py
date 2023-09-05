@@ -15,7 +15,7 @@ from PIL import Image
 import imagehash
 import glob
 
-def filter_similar_images(directory):
+def filter_similar_images(directory, hash_threshold=10):
     # image hash value
     image_files = sorted(glob.glob(os.path.join(directory, '*.jpg')))
     total_images = len(image_files)
@@ -37,7 +37,7 @@ def filter_similar_images(directory):
             continue
         similar_group = [img_file1]
         for j, (img_file2, hash2) in enumerate(hashes[i+1:], start=i+1):
-            if hash1 - hash2 <= 10:  # setting for hashing
+            if hash1 - hash2 <= hash_threshold:  # setting for hashing
                 similar_group.append(img_file2)
         checked.update(similar_group)
         to_keep.update(similar_group[:20]) 
@@ -69,7 +69,7 @@ def extract_frames(input_file, output_folder, last_frame_number):
     command = f"ffmpeg -i {abs_input_path} -vf fps=120 -vframes {last_frame_number} {os.path.join(abs_output_folder, '%d.jpg')}"
     subprocess.call(command, shell=True)
     
-def save_extracted_images(output_folder, marks, group_name):
+def save_extracted_images(output_folder, marks, group_name, hash_threshold):
     for idx, mark in enumerate(marks):
         start = marks[idx-1] if idx > 0 else 0
         end = mark
@@ -87,7 +87,7 @@ def save_extracted_images(output_folder, marks, group_name):
         
         false_dirs = [os.path.join(group_name, str(idx), 'false') for idx in range(len(marks))]
         for dir in false_dirs:
-            filter_similar_images(dir)
+            filter_similar_images(dir, hash_threshold)
     
 class CustomSlider(QSlider):
     def __init__(self, *args, **kwargs):
@@ -240,7 +240,7 @@ class VideoPlayer(QWidget):
             create_directory(true_subfolder_path)
             create_directory(false_subfolder_path)
 
-        save_extracted_images(output_folder, marked_frames_in_numbers, self.group_name)
+        save_extracted_images(output_folder, marked_frames_in_numbers, self.group_name, hash_threshold=args.s)
     
     def update_marked_info(self):
         marked_info_texts = []
@@ -326,8 +326,9 @@ class VideoPlayer(QWidget):
         self.statusBar.showMessage("Error: " + self.mediaPlayer.errorString())
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Process arguments.', usage='video.py -g [name]')
+    parser = argparse.ArgumentParser(description='Process arguments.', usage='video.py -g [name] <-s [int]>')
     parser.add_argument('-g', required=True, help='Name for new directory')
+    parser.add_argument('-s', type=int, default=10, help='Hash setting, Default = 10')
     args = parser.parse_args()
 
     create_directory(args.g)
