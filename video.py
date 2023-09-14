@@ -2,6 +2,7 @@ import os
 import subprocess
 import argparse
 import sys
+import signal
 import shutil
 
 from PyQt6.QtGui import QIcon, QFont, QPainter, QPen
@@ -14,6 +15,15 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QSt
 from PIL import Image
 import imagehash
 import glob
+    
+def quit_app(*args):
+    QApplication.instance().quit()
+    
+def resize_image(image_path, output_path, scale_factor):
+    image = Image.open(image_path)
+    new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
+    image_resized = image.resize(new_size)
+    image_resized.save(output_path)
 
 def filter_similar_images(directory, hash_threshold=10):
     # image hash value
@@ -27,7 +37,7 @@ def filter_similar_images(directory, hash_threshold=10):
             hashes.append((img_file, h))
         # Print progress for every 10 images
         if idx % 10 == 0:
-            print(f"Processed {idx}/{total_images} images")
+            print(f"Processed {idx}/{total_images} images", end='\r')
 
     # grouping 
     checked = set()
@@ -46,8 +56,6 @@ def filter_similar_images(directory, hash_threshold=10):
     for img_file in image_files:
         if img_file not in to_keep:
             os.remove(img_file)
-            
-    print(f"{directory} is completed.")
 
 def create_directory(name):
     path = os.path.join(os.getcwd(), name)
@@ -66,29 +74,44 @@ def extract_frames(input_file, output_folder, last_frame_number):
     abs_output_folder = os.path.abspath(output_folder)
     if not os.path.exists(abs_output_folder):
         os.makedirs(abs_output_folder)
-    command = f"ffmpeg -i {abs_input_path} -vf fps=120 -vframes {last_frame_number} {os.path.join(abs_output_folder, '%d.jpg')}"
-    subprocess.call(command, shell=True)
+        
+    output_path = os.path.join(abs_output_folder, '%d.jpg')
+    command = f'ffmpeg -i "{abs_input_path}" -vf fps=120 -vframes {last_frame_number} "{output_path}"'
+    
+    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    
+    if result.returncode != 0:
+        print(f"Error occurred during ffmpeg execution:\n{result.stderr}")
+    else:
+        print(f"ffmpeg output:\n{result.stdout}")
     
 def save_extracted_images(output_folder, marks, group_name, hash_threshold):
-    for idx, mark in enumerate(marks):
-        start = marks[idx-1] if idx > 0 else 0
-        end = mark
+    start = 1
+    for idx, sublist in marks:
+        if len(sublist) == 0:                    
+            print(f"task is completed.")
+            return
+        end = min(sublist)
         
         # true image save
-        true_image = os.path.join(output_folder, f"{end}.jpg")
-        destination = os.path.join(group_name, str(idx), 'true')
-        shutil.move(true_image, destination)
+        for true_frame in sublist:
+            true_image = os.path.join(output_folder, f"{true_frame}.jpg")
+            resize_image(true_image, true_image, 1/3)
+            destination = os.path.join(os.path.abspath(group_name), str(idx), 'true')
+            shutil.copy(true_image, destination)
 
         # false image save
-        for false_frame in range(start + 1, end):  
+        for false_frame in range(start, end):  
             false_image = os.path.join(output_folder, f"{false_frame}.jpg")
-            destination = os.path.join(group_name, str(idx), 'false')
-            shutil.move(false_image, destination)
+            resize_image(false_image, false_image, 1/3)
+            destination = os.path.join(os.path.abspath(group_name), str(idx), 'false')
+            shutil.copy(false_image, destination)
         
-        false_dirs = [os.path.join(group_name, str(idx), 'false') for idx in range(len(marks))]
-        for dir in false_dirs:
-            filter_similar_images(dir, hash_threshold)
+        start = min(sublist)
     
+        false_dirs = os.path.join(group_name, str(idx), 'false')
+        filter_similar_images(false_dirs, hash_threshold)
+        
 class CustomSlider(QSlider):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -115,6 +138,7 @@ class VideoPlayer(QWidget):
         self.frame_duration = float(1000 / 120)  # time of 1 frame (milisec)
         self.mediaPlayer = QMediaPlayer()
         self.marked_frames = [] 
+        self.true_frames = {key: [] for key in range(16)}
 
         btnSize = QSize(16, 16)
         videoWidget = QVideoWidget()
@@ -144,9 +168,8 @@ class VideoPlayer(QWidget):
         self.statusBar.setFont(QFont("Noto Sans", 7))
         self.statusBar.setFixedHeight(14)
 
-        self.markFrameButton = QPushButton("Mark Frame")
+        self.markFrameButton = QPushButton()
         self.markFrameButton.setEnabled(False)
-        self.markFrameButton.clicked.connect(self.mark_frame)
         
         self.extractButton = QPushButton("Extract Images")
         self.extractButton.setEnabled(False)
@@ -183,14 +206,14 @@ class VideoPlayer(QWidget):
     # open video
     def abrir(self):
         fileName, _ = QFileDialog.getOpenFileName(self, "Select Media",
-                ".", "Video Files (*.mp4 *.flv *.ts *.mts *.avi)")
+                ".", "Video Files (*.mp4 *.flv *.ts *.mts *.avi *.m4a)")
         
         self.markFrameButton.setEnabled(True)
         self.extractButton.setEnabled(True)
 
         if fileName != '':
             # end with 'encoded'
-            if not fileName.endswith("_encoded.mp4"):
+            if not os.path.splitext(fileName)[0].endswith("_encoded"):
                 # do encoding
                 basename = os.path.basename(fileName)
                 name, ext = os.path.splitext(basename)
@@ -219,17 +242,21 @@ class VideoPlayer(QWidget):
         self.update_marked_info()
         
     def extract_images(self):
-        video_file = self.mediaPlayer.source().fileName()
+        url = self.mediaPlayer.source()
+        video_file = url.toLocalFile()
+
         output_folder = os.path.join(os.path.dirname(video_file), "image")
         
-        marked_frames_in_numbers = [int(frame // self.frame_duration) for frame in self.marked_frames]
-        last_frame = max(marked_frames_in_numbers) if marked_frames_in_numbers else 0
-        
+        marks = [frame for sublist in self.true_frames.values() for frame in sublist]
+        last_frame = max(marks) if marks else 0
         extract_frames(video_file, output_folder, last_frame)
-        self.statusBar.showMessage(f"Images extracted to {output_folder}")
+        print(f"Images extracted to {output_folder}")
 
         # Create folders
-        for idx, _ in enumerate(marked_frames_in_numbers):
+        for idx, frames in self.true_frames.items():
+            if len(frames) == 0:
+                continue
+                
             new_folder_name = str(idx) 
             new_folder_path = os.path.join(self.group_name, new_folder_name)  # Path
             create_directory(new_folder_path)
@@ -240,12 +267,15 @@ class VideoPlayer(QWidget):
             create_directory(true_subfolder_path)
             create_directory(false_subfolder_path)
 
-        save_extracted_images(output_folder, marked_frames_in_numbers, self.group_name, hash_threshold=args.s)
-    
+        save_extracted_images(os.path.abspath(output_folder), self.true_frames.items(), self.group_name, hash_threshold=args.s)
+        
     def update_marked_info(self):
         marked_info_texts = []
-        for index, frame in enumerate(self.marked_frames):
-            marked_info_texts.append(f"Mark {index}: {int(frame // self.frame_duration)}")
+        for index, frames in self.true_frames.items():
+            frame_count = len(frames)
+            if frame_count == 0:
+                continue
+            marked_info_texts.append(f"Mark {index}: {frame_count}")
         self.markedInfoLabel.setText(" | ".join(marked_info_texts))
 
     def play(self):
@@ -262,17 +292,6 @@ class VideoPlayer(QWidget):
             self.playButton.setIcon(
                     self.style().standardIcon(QStyle.StandardPixmap.SP_MediaPlay))
 
-    def positionChanged(self, position):
-        self.positionSlider.setValue(position)
-        if position in self.marked_frames:
-            self.markFrameButton.setText("Remove Mark")
-        else:
-            self.markFrameButton.setText("Mark Frame")
-        self.update_frame_number(position, self.mediaPlayer.duration())
-
-    def durationChanged(self, duration):
-        self.positionSlider.setRange(0, duration)
-
     def setPosition(self, position):
         self.mediaPlayer.setPosition(position)
         
@@ -280,10 +299,7 @@ class VideoPlayer(QWidget):
         self.positionSlider.setValue(position)
         self.update_frame_number(position, self.mediaPlayer.duration())
         # current location = mark frame location
-        if position in self.marked_frames:
-            self.markFrameButton.setText("Remove Mark")
-        else:
-            self.markFrameButton.setText("Mark Frame")
+        self.update_button_text()
 
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
@@ -295,14 +311,24 @@ class VideoPlayer(QWidget):
         self.statusBar.showMessage(f"{current_frame}/{total_frames}")
             
     def update_button_text(self):
-        current_position = self.mediaPlayer.position()
+        current_position = int(self.mediaPlayer.position() // self.frame_duration)
         # current location = mark frame location
-        if current_position in self.marked_frames:
-            self.markFrameButton.setText("Remove Mark")
+        group_name = None
+        for group, frames in self.true_frames.items():
+            if current_position in frames:
+                group_name = str(group) if group < 10 else chr(ord('A') + group - 10)
+                break
+        
+        if group_name:
+            self.markFrameButton.setText(group_name)
         else:
-            self.markFrameButton.setText("Mark Frame")
+            self.markFrameButton.setText("No Marked")
         
     def keyPressEvent(self, event):
+        if event.key() == Qt.Key.Key_Space:
+            self.play() 
+            return 
+ 
         if event.key() == Qt.Key.Key_Right:
             self.mediaPlayer.pause()
             position = self.mediaPlayer.position()
@@ -318,14 +344,22 @@ class VideoPlayer(QWidget):
                       Qt.Key.Key_8, Qt.Key.Key_9, Qt.Key.Key_A, Qt.Key.Key_B,
                       Qt.Key.Key_C, Qt.Key.Key_D, Qt.Key.Key_E, Qt.Key.Key_F]
         for i, key in enumerate(frame_keys):
-            if event.key() == key and i < len(self.marked_frames):
-                self.mediaPlayer.setPosition(self.marked_frames[i])
+            if event.key() == key:
+                current_frame = int(self.mediaPlayer.position() // self.frame_duration)
+                if current_frame in self.true_frames[i]:
+                    self.true_frames[i].remove(current_frame)
+                else:
+                    self.true_frames[i].append(current_frame)
+                
+                self.update_marked_info()
 
     def handleError(self):
         self.playButton.setEnabled(False)
         self.statusBar.showMessage("Error: " + self.mediaPlayer.errorString())
 
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, quit_app)
+    
     parser = argparse.ArgumentParser(description='Process arguments.', usage='video.py -g [name] <-s [int]>')
     parser.add_argument('-g', required=True, help='Name for new directory')
     parser.add_argument('-s', type=int, default=10, help='Hash setting, Default = 10')
@@ -343,4 +377,3 @@ if __name__ == '__main__':
     player.setWindowTitle("Player")
     player.resize(900, 600)
     player.show()
-    sys.exit(app.exec())
