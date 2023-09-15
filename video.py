@@ -352,6 +352,7 @@ class VideoPlayer(QWidget):
                     self.true_frames[i].append(current_frame)
                 
                 self.update_marked_info()
+                self.update_button_text()
 
     def handleError(self):
         self.playButton.setEnabled(False)
@@ -377,3 +378,4 @@ if __name__ == '__main__':
     player.setWindowTitle("Player")
     player.resize(900, 600)
     player.show()
+    sys.exit(app.exec())
