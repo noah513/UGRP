@@ -168,7 +168,7 @@ class VideoPlayer(QWidget):
         self.statusBar.setFont(QFont("Noto Sans", 7))
         self.statusBar.setFixedHeight(14)
 
-        self.markFrameButton = QPushButton()
+        self.markFrameButton = QPushButton("No Marked")
         self.markFrameButton.setEnabled(False)
         
         self.extractButton = QPushButton("Extract Images")
