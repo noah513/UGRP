@@ -295,7 +295,7 @@ class VideoPlayer(QWidget):
         self.update_frame_number(self.mediaPlayer.position(), duration)
 
     def update_frame_number(self, position, duration):
-        current_frame = round(position / self.frame_duration)
+        current_frame = int(position // self.frame_duration)
         total_frames = round(duration / self.frame_duration)
         self.statusBar.showMessage(f"{current_frame}/{total_frames}")
             
