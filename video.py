@@ -11,7 +11,6 @@ from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QStyleFactory,
         QPushButton, QSizePolicy, QSlider, QStyle, QVBoxLayout, QWidget, QStatusBar, QMessageBox, QProgressDialog)
-        
 from PIL import Image
 import imagehash
 import glob
@@ -137,7 +136,7 @@ class VideoPlayer(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.frame_duration = float(1000 / 120)  # time of 1 frame (milisec)
         self.mediaPlayer = QMediaPlayer()
-        self.marked_frames = [] 
+        self.temp_frame_range = {}
         self.true_frames = {key: [] for key in range(16)}
 
         btnSize = QSize(16, 16)
@@ -227,19 +226,6 @@ class VideoPlayer(QWidget):
             self.playButton.setEnabled(True)
             self.statusBar.showMessage(encoded_file)
             self.play()
-    
-    def mark_frame(self):
-        current_position = self.mediaPlayer.position()
-        if current_position in self.marked_frames:
-            self.marked_frames.remove(current_position)
-        else:
-            if len(self.marked_frames) >= 16:
-                QMessageBox.warning(self, "Warning", "You have reached the maximum number of marked frames (16).")
-                return
-            self.marked_frames.append(current_position)
-            self.marked_frames.sort()
-        self.update_button_text()
-        self.update_marked_info()
         
     def extract_images(self):
         url = self.mediaPlayer.source()
@@ -343,14 +329,35 @@ class VideoPlayer(QWidget):
                       Qt.Key.Key_4, Qt.Key.Key_5, Qt.Key.Key_6, Qt.Key.Key_7,
                       Qt.Key.Key_8, Qt.Key.Key_9, Qt.Key.Key_A, Qt.Key.Key_B,
                       Qt.Key.Key_C, Qt.Key.Key_D, Qt.Key.Key_E, Qt.Key.Key_F]
+        
         for i, key in enumerate(frame_keys):
             if event.key() == key:
                 current_frame = int(self.mediaPlayer.position() // self.frame_duration)
-                if current_frame in self.true_frames[i]:
-                    self.true_frames[i].remove(current_frame)
-                else:
+                if key not in self.temp_frame_range:
+                    self.temp_frame_range[key] = []
+                    self.temp_frame_range[key].append(current_frame)  # Set start frame
                     self.true_frames[i].append(current_frame)
+                    print(f"start")
+                else:
+                    if len(self.temp_frame_range[key]) >= 2:
+                        if current_frame < self.temp_frame_range[key][0]:
+                            del self.temp_frame_range[key][0]
+                            self.temp_frame_range[key].insert(0, current_frame)
+                        else:
+                            del self.temp_frame_range[key][1]
+                            self.temp_frame_range[key].append(current_frame)
+                    else:
+                        if current_frame < self.temp_frame_range[key][0]:
+                            self.temp_frame_range[key].insert(0, current_frame)
+                        else:
+                            self.temp_frame_range[key].append(current_frame)
+                    start_frame = self.temp_frame_range[key][0]
+                    end_frame = self.temp_frame_range[key][1]
                 
+                    # Update 
+                    self.true_frames[i] = list(range(start_frame, end_frame + 1))
+                    print(f"end")
+                    
                 self.update_marked_info()
                 self.update_button_text()
 
