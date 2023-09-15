@@ -136,7 +136,7 @@ class VideoPlayer(QWidget):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.frame_duration = float(1000 / 120)  # time of 1 frame (milisec)
         self.mediaPlayer = QMediaPlayer()
-        self.temp_frame_range = {}
+        self.frame_range = {}
         self.true_frames = {key: [] for key in range(16)}
 
         btnSize = QSize(16, 16)
@@ -257,11 +257,14 @@ class VideoPlayer(QWidget):
         
     def update_marked_info(self):
         marked_info_texts = []
-        for index, frames in self.true_frames.items():
-            frame_count = len(frames)
-            if frame_count == 0:
+        for index, ranges in self.frame_range.items():
+            ranges_count = len(ranges)
+            if ranges_count == 0:
                 continue
-            marked_info_texts.append(f"Mark {index}: {frame_count}")
+            elif ranges_count == 1:
+                marked_info_texts.append(f"Mark {index-48}: {ranges[0]}~{ranges[0]}")
+            else:
+                marked_info_texts.append(f"Mark {index-48}: {ranges[0]}~{ranges[1]}")
         self.markedInfoLabel.setText(" | ".join(marked_info_texts))
 
     def play(self):
@@ -333,30 +336,28 @@ class VideoPlayer(QWidget):
         for i, key in enumerate(frame_keys):
             if event.key() == key:
                 current_frame = int(self.mediaPlayer.position() // self.frame_duration)
-                if key not in self.temp_frame_range:
-                    self.temp_frame_range[key] = []
-                    self.temp_frame_range[key].append(current_frame)  # Set start frame
+                if key not in self.frame_range:
+                    self.frame_range[key] = []
+                    self.frame_range[key].append(current_frame)  # Set start frame
                     self.true_frames[i].append(current_frame)
-                    print(f"start")
                 else:
-                    if len(self.temp_frame_range[key]) >= 2:
-                        if current_frame < self.temp_frame_range[key][0]:
-                            del self.temp_frame_range[key][0]
-                            self.temp_frame_range[key].insert(0, current_frame)
+                    if len(self.frame_range[key]) >= 2:
+                        if current_frame < self.frame_range[key][0]:
+                            del self.frame_range[key][0]
+                            self.frame_range[key].insert(0, current_frame)
                         else:
-                            del self.temp_frame_range[key][1]
-                            self.temp_frame_range[key].append(current_frame)
+                            del self.frame_range[key][1]
+                            self.frame_range[key].append(current_frame)
                     else:
-                        if current_frame < self.temp_frame_range[key][0]:
-                            self.temp_frame_range[key].insert(0, current_frame)
+                        if current_frame < self.frame_range[key][0]:
+                            self.frame_range[key].insert(0, current_frame)
                         else:
-                            self.temp_frame_range[key].append(current_frame)
-                    start_frame = self.temp_frame_range[key][0]
-                    end_frame = self.temp_frame_range[key][1]
+                            self.frame_range[key].append(current_frame)
+                    start_frame = self.frame_range[key][0]
+                    end_frame = self.frame_range[key][1]
                 
                     # Update 
                     self.true_frames[i] = list(range(start_frame, end_frame + 1))
-                    print(f"end")
                     
                 self.update_marked_info()
                 self.update_button_text()
