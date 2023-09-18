@@ -237,9 +237,9 @@ class VideoPlayer(QWidget):
         print(f"Images extracted to {output_folder}")
 
         for filename in os.listdir(output_folder):
-        if filename.endswith(".jpg"):
-            img_path = os.path.join(output_folder, filename)
-            resize_image(img_path, img_path, 1/2)
+            if filename.endswith(".jpg"):
+                img_path = os.path.join(output_folder, filename)
+                resize_image(img_path, img_path, 1/2)
         
         # Create folders
         for idx, frames in self.true_frames.items():
