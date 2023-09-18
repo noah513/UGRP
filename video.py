@@ -95,14 +95,12 @@ def save_extracted_images(output_folder, marks, group_name, hash_threshold):
         # true image save
         for true_frame in sublist:
             true_image = os.path.join(output_folder, f"{true_frame}.jpg")
-            resize_image(true_image, true_image, 1/3)
             destination = os.path.join(os.path.abspath(group_name), str(idx), 'true')
             shutil.copy(true_image, destination)
 
         # false image save
         for false_frame in range(start, end):  
             false_image = os.path.join(output_folder, f"{false_frame}.jpg")
-            resize_image(false_image, false_image, 1/3)
             destination = os.path.join(os.path.abspath(group_name), str(idx), 'false')
             shutil.copy(false_image, destination)
         
@@ -238,6 +236,11 @@ class VideoPlayer(QWidget):
         extract_frames(video_file, output_folder, last_frame)
         print(f"Images extracted to {output_folder}")
 
+        for filename in os.listdir(output_folder):
+        if filename.endswith(".jpg"):
+            img_path = os.path.join(output_folder, filename)
+            resize_image(img_path, img_path, 1/2)
+        
         # Create folders
         for idx, frames in self.true_frames.items():
             if len(frames) == 0:
