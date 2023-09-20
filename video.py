@@ -49,7 +49,7 @@ def filter_similar_images(directory, hash_threshold=10):
             if hash1 - hash2 <= hash_threshold:  # setting for hashing
                 similar_group.append(img_file2)
         checked.update(similar_group)
-        to_keep.update(similar_group[:20]) 
+        to_keep.update(similar_group[:40]) 
 
     # delete other images
     for img_file in image_files:
