@@ -11,7 +11,7 @@ from PyQt6.QtMultimedia import QMediaPlayer
 from PyQt6.QtMultimediaWidgets import QVideoWidget
 from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QStyleFactory,
         QPushButton, QSizePolicy, QSlider, QStyle, QVBoxLayout, QWidget, QStatusBar, QMessageBox, QProgressDialog)
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 import imagehash
 import glob
     
@@ -19,10 +19,13 @@ def quit_app(*args):
     QApplication.instance().quit()
     
 def resize_image(image_path, output_path, scale_factor):
-    image = Image.open(image_path)
-    new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
-    image_resized = image.resize(new_size)
-    image_resized.save(output_path)
+    try:
+        image = Image.open(image_path)
+        new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
+        image_resized = image.resize(new_size)
+        image_resized.save(output_path)
+    except UnidentifiedImageError:
+        return
 
 def filter_similar_images(directory, hash_threshold=10):
     # image hash value
@@ -297,13 +300,17 @@ class VideoPlayer(QWidget):
         self.positionSlider.setRange(0, duration)
         self.update_frame_number(self.mediaPlayer.position(), duration)
 
-    def update_frame_number(self, position, duration):
-        current_frame = int(position // self.frame_duration)
-        total_frames = round(duration / self.frame_duration)
+    def update_frame_number(self):
+        current_frame = int(self.mediaPlayer.position() // self.frame_duration)
+        if current_frame != 0:
+            current_frame += 1
+        total_frames = int(self.mediaPlayer.duration() // self.frame_duration)
         self.statusBar.showMessage(f"{current_frame}/{total_frames}")
             
     def update_button_text(self):
         current_position = int(self.mediaPlayer.position() // self.frame_duration)
+        if current_position != 0:
+            current_position += 1
         # current location = mark frame location
         group_name = None
         for group, frames in self.true_frames.items():
@@ -339,6 +346,8 @@ class VideoPlayer(QWidget):
         for i, key in enumerate(frame_keys):
             if event.key() == key:
                 current_frame = int(self.mediaPlayer.position() // self.frame_duration)
+                if current_frame != 0:
+                    current_frame += 1
                 if key not in self.frame_range:
                     self.frame_range[key] = []
                     self.frame_range[key].append(current_frame)  # Set start frame
