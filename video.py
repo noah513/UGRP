@@ -17,7 +17,7 @@ import glob
     
 def quit_app(*args):
     QApplication.instance().quit()
-    
+
 def resize_image(image_path, output_path, scale_factor):
     try:
         image = Image.open(image_path)
@@ -119,18 +119,6 @@ class CustomSlider(QSlider):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.marked_positions = []
-
-    def paintEvent(self, event):
-        super().paintEvent(event)
-
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        for pos in self.marked_positions:
-            x = self.style().sliderPositionFromValue(self.minimum(), self.maximum(), pos, self.width())
-            color = Qt.GlobalColor.red
-            painter.setPen(QPen(color, 2))
-            painter.drawLine(x, 0, x, self.height())
      
 # main class
 class VideoPlayer(QWidget):     
