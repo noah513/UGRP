@@ -26,7 +26,7 @@ def resize_image(image_path, output_path, scale_factor):
         image_resized.save(output_path)
     except UnidentifiedImageError:
         return
-
+        
 def filter_similar_images(directory, hash_threshold=10):
     # image hash value
     image_files = sorted(glob.glob(os.path.join(directory, '*.jpg')))
@@ -59,11 +59,11 @@ def filter_similar_images(directory, hash_threshold=10):
         if img_file not in to_keep:
             os.remove(img_file)
 
-def create_directory(name):
-    path = os.path.join(os.getcwd(), name)
-    if os.path.exists(path):
-        shutil.rmtree(path)  # delete folder (reset)
-    os.makedirs(path)
+def create_directory(path, name):
+    directory_path = os.path.join(path, name)
+    if os.path.exists(directory_path):
+        shutil.rmtree(directory_path)  # delete folder (reset)
+    os.makedirs(directory_path)
         
 def encode_to_120fps(input_file, output_file):
     abs_input_path = os.path.abspath(input_file)
@@ -74,8 +74,11 @@ def encode_to_120fps(input_file, output_file):
 def extract_frames(input_file, output_folder, last_frame_number):
     abs_input_path = os.path.abspath(input_file)
     abs_output_folder = os.path.abspath(output_folder)
-    if not os.path.exists(abs_output_folder):
-        os.makedirs(abs_output_folder)
+    
+    if os.path.exists(abs_output_folder):
+        shutil.rmtree(abs_output_folder)
+    
+    os.makedirs(abs_output_folder)
         
     output_path = os.path.join(abs_output_folder, '%d.jpg')
     command = f'ffmpeg -i "{abs_input_path}" -vf fps=120 -vframes {last_frame_number} "{output_path}"'
@@ -131,9 +134,10 @@ class CustomSlider(QSlider):
      
 # main class
 class VideoPlayer(QWidget):     
-    def __init__(self, parent=None, group_name=None):
+    def __init__(self, parent=None, group_name=None, directory_path=None):
         super(VideoPlayer, self).__init__(parent)
         self.group_name = group_name
+        self.directory_path = directory_path
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.frame_duration = float(1000 / 120)  # time of 1 frame (milisec)
         self.mediaPlayer = QMediaPlayer()
@@ -232,10 +236,11 @@ class VideoPlayer(QWidget):
         url = self.mediaPlayer.source()
         video_file = url.toLocalFile()
 
-        output_folder = os.path.join(os.path.dirname(video_file), "image")
+        output_folder = os.path.join(self.directory_path, "image")
         
         marks = [frame for sublist in self.true_frames.values() for frame in sublist]
         last_frame = max(marks) if marks else 0
+        print(f"{last_frame}")
         extract_frames(video_file, output_folder, last_frame)
         print(f"Images extracted to {output_folder}")
 
@@ -250,14 +255,12 @@ class VideoPlayer(QWidget):
                 continue
                 
             new_folder_name = str(idx) 
-            new_folder_path = os.path.join(self.group_name, new_folder_name)  # Path
-            create_directory(new_folder_path)
+            new_folder_path = os.path.join(self.group_name, new_folder_name)
+            create_directory(self.group_name, new_folder_name)
 
             # true and false subfolder
-            true_subfolder_path = os.path.join(new_folder_path, "true")
-            false_subfolder_path = os.path.join(new_folder_path, "false")
-            create_directory(true_subfolder_path)
-            create_directory(false_subfolder_path)
+            create_directory(new_folder_path, "true")
+            create_directory(new_folder_path, "false")
 
         save_extracted_images(os.path.abspath(output_folder), self.true_frames.items(), self.group_name, hash_threshold=args.s)
         
@@ -292,13 +295,13 @@ class VideoPlayer(QWidget):
         
     def positionChanged(self, position):
         self.positionSlider.setValue(position)
-        self.update_frame_number(position, self.mediaPlayer.duration())
+        self.update_frame_number()
         # current location = mark frame location
         self.update_button_text()
 
     def durationChanged(self, duration):
         self.positionSlider.setRange(0, duration)
-        self.update_frame_number(self.mediaPlayer.position(), duration)
+        self.update_frame_number()
 
     def update_frame_number(self):
         current_frame = int(self.mediaPlayer.position() // self.frame_duration)
@@ -331,12 +334,12 @@ class VideoPlayer(QWidget):
         if event.key() == Qt.Key.Key_Right:
             self.mediaPlayer.pause()
             position = self.mediaPlayer.position()
-            new_position = int(round(position + self.frame_duration))
+            new_position = int(position + self.frame_duration)
             self.mediaPlayer.setPosition(new_position)
         elif event.key() == Qt.Key.Key_Left:
             self.mediaPlayer.pause()
             position = self.mediaPlayer.position()
-            new_position = int(round(max(0, position - self.frame_duration)))
+            new_position = int(max(0, position - self.frame_duration))
             self.mediaPlayer.setPosition(new_position)
         frame_keys = [Qt.Key.Key_0, Qt.Key.Key_1, Qt.Key.Key_2, Qt.Key.Key_3,
                       Qt.Key.Key_4, Qt.Key.Key_5, Qt.Key.Key_6, Qt.Key.Key_7,
@@ -384,9 +387,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Process arguments.', usage='video.py -g [name] <-s [int]>')
     parser.add_argument('-g', required=True, help='Name for new directory')
     parser.add_argument('-s', type=int, default=10, help='Hash setting, Default = 10')
+    parser.add_argument('-p', default="", help='path setting, Default = Video path')
     args = parser.parse_args()
-
-    create_directory(args.g)
+    
+    directory_path = args.p if args.p else os.getcwd()
+    create_directory(directory_path, args.g)
 
     app = QApplication(sys.argv)
     app.setStyleSheet("""
@@ -394,7 +399,7 @@ if __name__ == '__main__':
             font-size: 12px;
         }
     """)
-    player = VideoPlayer(group_name=args.g)
+    player = VideoPlayer(group_name=args.g, directory_path=directory_path)
     player.setWindowTitle("Player")
     player.resize(900, 600)
     player.show()
