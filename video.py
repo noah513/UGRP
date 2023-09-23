@@ -354,6 +354,8 @@ class VideoPlayer(QWidget):
                         if current_frame < self.frame_range[key][0]:
                             del self.frame_range[key][0]
                             self.frame_range[key].insert(0, current_frame)
+                        elif current_frame == self.frame_range[key][0]:
+                            self.frame_range[key][0] = self.frame_range[key][1]
                         else:
                             del self.frame_range[key][1]
                             self.frame_range[key].append(current_frame)
