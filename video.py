@@ -14,18 +14,24 @@ from PyQt6.QtWidgets import (QApplication, QFileDialog, QHBoxLayout, QLabel, QSt
 from PIL import Image, UnidentifiedImageError
 import imagehash
 import glob
+import cv2
+import tensorflow as tf
     
 def quit_app(*args):
     QApplication.instance().quit()
 
 def resize_image(image_path, output_path, scale_factor):
-    try:
-        image = Image.open(image_path)
-        new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
-        image_resized = image.resize(new_size)
-        image_resized.save(output_path)
-    except UnidentifiedImageError:
-        return
+    #image = Image.open(image_path)
+    #new_size = (int(image.width * scale_factor), int(image.height * scale_factor))
+    #image_resized = image.resize(new_size)
+    #image_resized.save(output_path)
+    image = cv2.imread(image_path)
+    height, width = image.shape[:2]
+    new_height = int(width * scale_factor)
+    new_width = int(height * scale_factor)
+    image_resized = tf.image.resize(image, [new_width, new_height])
+    # image_resized.save(output_path)
+    tf.keras.utils.save_img(output_path, image_resized)
         
 def filter_similar_images(directory, hash_threshold=10):
     # image hash value
