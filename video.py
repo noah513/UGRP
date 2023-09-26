@@ -183,12 +183,26 @@ class VideoPlayer(QWidget):
         
         self.markedInfoLabel = QLabel()  # Used to display marked frames
         self.markedInfoLabel.setFont(QFont("Noto Sans", 8))
+        
+        markedInfoLayout = QHBoxLayout()
+        markedInfoLayout.addWidget(self.markedInfoLabel)
+        
+        self.frameInfoLabel = QLabel()  # Used to display current frame number
+        self.frameInfoLabel.setFont(QFont("Noto Sans", 8))
+        
+        self.timeLabel = QLabel()  # label for timer
+        self.timeLabel.setFont(QFont("Noto Sans", 8))
+        self.timeLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
+        
+        labelLayout = QHBoxLayout()
+        labelLayout.addWidget(self.frameInfoLabel)
+        labelLayout.addWidget(self.timeLabel)
 
         mainLayout = QVBoxLayout()
         mainLayout.addWidget(videoWidget)
         mainLayout.addLayout(controlLayout)
-        mainLayout.addWidget(self.markedInfoLabel)
-        mainLayout.addWidget(self.statusBar)
+        mainLayout.addLayout(markedInfoLayout)
+        mainLayout.addLayout(labelLayout)
 
         self.setLayout(mainLayout)
 
@@ -199,7 +213,13 @@ class VideoPlayer(QWidget):
         self.mediaPlayer.errorChanged.connect(self.handleError)
         self.statusBar.showMessage("Ready")
         
+        self.markedInfoLabel.setText("Marked Info")
+        self.frameInfoLabel.setText("frame Info")
+        self.timeLabel.setText("Time Info")
+
         self.markedInfoLabel.setFixedHeight(10)
+        self.frameInfoLabel.setFixedHeight(10)
+        self.timeLabel.setFixedHeight(10)
 
     # open video
     def abrir(self):
@@ -290,6 +310,11 @@ class VideoPlayer(QWidget):
     def positionChanged(self, position):
         self.positionSlider.setValue(position)
         self.update_frame_number()
+        
+        # minutes, seconds = divmod(position // 1000, 60)
+        minutes, remainder = divmod(position, 60000)
+        seconds, millisec = divmod(remainder, 1000)
+        self.timeLabel.setText(f"{minutes:02}:{seconds:02}.{millisec:03}")
         # current location = mark frame location
         self.update_button_text()
 
@@ -302,7 +327,7 @@ class VideoPlayer(QWidget):
         if current_frame != 0:
             current_frame += 1
         total_frames = int(self.mediaPlayer.duration() // self.frame_duration)
-        self.statusBar.showMessage(f"{current_frame}/{total_frames}")
+        self.frameInfoLabel.setText(f"{current_frame}/{total_frames}")
             
     def update_button_text(self):
         current_position = int(self.mediaPlayer.position() // self.frame_duration)
