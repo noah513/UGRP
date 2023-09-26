@@ -353,12 +353,12 @@ class VideoPlayer(QWidget):
         if event.key() == Qt.Key.Key_Right:
             self.mediaPlayer.pause()
             position = self.mediaPlayer.position()
-            new_position = int(position + self.frame_duration)
+            new_position = int(round(position + self.frame_duration))
             self.mediaPlayer.setPosition(new_position)
         elif event.key() == Qt.Key.Key_Left:
             self.mediaPlayer.pause()
             position = self.mediaPlayer.position()
-            new_position = int(max(0, position - self.frame_duration))
+            new_position = int(round(max(0, position - self.frame_duration)))
             self.mediaPlayer.setPosition(new_position)
         frame_keys = [Qt.Key.Key_0, Qt.Key.Key_1, Qt.Key.Key_2, Qt.Key.Key_3,
                       Qt.Key.Key_4, Qt.Key.Key_5, Qt.Key.Key_6, Qt.Key.Key_7,
