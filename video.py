@@ -182,16 +182,16 @@ class VideoPlayer(QWidget):
         controlLayout.addWidget(self.extractButton)
         
         self.markedInfoLabel = QLabel()  # Used to display marked frames
-        self.markedInfoLabel.setFont(QFont("Noto Sans", 8))
+        self.markedInfoLabel.setFont(QFont("Noto Sans", 10))
         
         markedInfoLayout = QHBoxLayout()
         markedInfoLayout.addWidget(self.markedInfoLabel)
         
         self.frameInfoLabel = QLabel()  # Used to display current frame number
-        self.frameInfoLabel.setFont(QFont("Noto Sans", 8))
+        self.frameInfoLabel.setFont(QFont("Noto Sans", 12))
         
         self.timeLabel = QLabel()  # label for timer
-        self.timeLabel.setFont(QFont("Noto Sans", 8))
+        self.timeLabel.setFont(QFont("Noto Sans", 12))
         self.timeLabel.setAlignment(Qt.AlignmentFlag.AlignRight)
         
         labelLayout = QHBoxLayout()
@@ -217,9 +217,9 @@ class VideoPlayer(QWidget):
         self.frameInfoLabel.setText("frame Info")
         self.timeLabel.setText("Time Info")
 
-        self.markedInfoLabel.setFixedHeight(10)
-        self.frameInfoLabel.setFixedHeight(10)
-        self.timeLabel.setFixedHeight(10)
+        self.markedInfoLabel.setFixedHeight(12)
+        self.frameInfoLabel.setFixedHeight(20)
+        self.timeLabel.setFixedHeight(20)
 
     # open video
     def abrir(self):
