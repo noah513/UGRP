@@ -26,6 +26,8 @@ def resize_image(image_path, output_path, scale_factor):
     #image_resized = image.resize(new_size)
     #image_resized.save(output_path)
     image = cv2.imread(image_path)
+    # RGB transformation
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     height, width = image.shape[:2]
     new_height = int(width * scale_factor)
     new_width = int(height * scale_factor)
